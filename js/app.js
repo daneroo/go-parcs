@@ -32,18 +32,20 @@ App = (function () {
     function clientFilter(markers,callback){
       // console.log('-----')
       // console.log('clientFilter activeFilters',JSON.stringify(activeFilters,null));
-      var filteredMarkers=[];
+      var filteredMarkers=[],
+           hasSectorFilter = Object.keys(activeFilters.sectors).length;
+      
       $.each(markers,function(i,marker){
+        
         // filter each marker against active Filters
-        var reject=false;
-        $.each(activeFilters.sectors,function(sector,_ignore){
-          // console.log('testing sector',i,marker.sector,sector);
-          if (!(marker.sector==sector)){
-            // console.log('sector MISMATCH',sector);
-            reject=true;
-            return false;// break the foreach loop
+        var reject = hasSectorFilter;
+        
+        $.each(activeFilters.sectors, function(sector, _ignore) {
+          if (marker.sector == sector) {
+            return (reject = false);
           }
         });
+        
         $.each(activeFilters.installations,function(installation,_ignore){
           // console.log('testing installation',i,installation);
           if (!marker.hasInstalltion[installation]){
