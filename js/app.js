@@ -1,6 +1,7 @@
-$(function(){
-  // console.log('jQuery ready');
-})
+$(function () { //jQuery .ready handler
+    App.init();
+}); 
+
 App = (function () {
     "use strict";
     
@@ -10,7 +11,7 @@ App = (function () {
         GLatLng = GMap.LatLng,
         customIcons = {
             parc: {
-                icon: 'images/mm_20_green.png' ,
+                icon: 'images/mm_20_green.png',
                 shadow: 'images/mm_20_shadow.png'
             },
           
@@ -20,7 +21,7 @@ App = (function () {
             }
         },
         focusedMarker = null,
-        activeMarkers = [],
+        displayedMarkers = [],
         activeFilters = {
             sectors: {},
             installations: {}
@@ -28,61 +29,103 @@ App = (function () {
         cachedMarkers = null,
         searchInput, map, infoWindow, markerClusterer;
     
-    function clientFilter(markers,callback){
-      // console.log('-----')
-      // console.log('clientFilter activeFilters',JSON.stringify(activeFilters,null));
-      var filteredMarkers=[];
-      $.each(markers,function(i,marker){
-        // console.log('-----')
-        if (!marker.hasInstalltion){
-          // console.log('splitting installations');
-          marker.hasInstalltion={}
-          var installations = marker.installations.split(/\s*,\s*/);
-          $.each(installations,function(i,installation){
-            marker.hasInstalltion[installation]=true;
-          });
-        }
-        // filter each marker against active Filters
-        var reject=false;
-        $.each(activeFilters.sectors,function(sector,_ignore){
-          // console.log('testing sector',i,marker.sector,sector);
-          if (!(marker.sector==sector)){
-            // console.log('sector MISMATCH',sector);
-            reject=true;
-            return false;// break the foreach loop
-          }
-        });
-        $.each(activeFilters.installations,function(installation,_ignore){
-          // console.log('testing installation',i,installation);
-          if (!marker.hasInstalltion[installation]){
-            reject=true;
-            return false;// break the foreach loop
-          }
-        });
+    /**
+     * Filters marker so that,
+     * any (OR) sector selection match
+     * all (AND) installation selections match
+     */
+    function filterMarkers(filters, markers) {
+        filters = filters || activeFilters;
         
-        // if (Math.random()>.5) filteredMarkers.push(marker);
-        if (!reject) filteredMarkers.push(marker);
-      });
-      // console.log('filtered markers',filteredMarkers.length);
-      callback(filteredMarkers,200);
+        var filteredMarkers = [],
+            sectorsFilter = filters.sectors,
+            installationsFilter = filters.installations;
+            
+        $.each(markers, function (i, marker) {
+            var hasAtLeastOneSector = false;
+            var accept = false;
+            
+            $.each(sectorsFilter, function (sector) {
+                hasAtLeastOneSector = true;
+                if (marker.sector === sector) {
+                    accept = true;
+                    return false; // break the foreach loop
+                }
+            });
+        
+            // reject by sector: at least on sector is checked, and NO selected sectors match
+            var reject = hasAtLeastOneSector && !accept;
+        
+            // reject by installation: reject if any selected installation is not present
+            $.each(installationsFilter, function (installation) {
+                if (!marker.hasInstallation[installation]) {
+                    reject = true;
+                    return false; // break the foreach loop
+                }
+            });
+        
+            if (!reject) {
+                filteredMarkers.push(marker);
+            }
+        });
+      
+        return filteredMarkers;
     }
-    function getMarkers(criterias, callback) {
-        criterias = criterias || '';
+    
+    function markersPostProcessing(markers) {
         
-        /* previous server side - php criteria filtering 
-        ajax('php/markers.php?' + criterias, function (request, status) {  
-            callback(JSON.parse(request.responseText), status);
+        var allSectors = {};
+        var allInstallations = {};
+        
+        $.each(markers, function (i, marker) {
+            allSectors[marker.sector] = true;
+            marker.hasInstallation = {};
+       
+            $.each(marker.installations, function (i, installation) {
+                allInstallations[installation] = true;
+                marker.hasInstallation[installation] = true;
+            });
         });
-        */
-        if (cachedMarkers){
-          // console.log('markers are cached');
-          clientFilter(cachedMarkers,callback);
+        
+        // sort and insert sector checkboxes
+        var sortedSectors = c7nSortedHashKeys(allSectors);
+        var $sectors = $('#sectors');
+        
+        $.each(sortedSectors, function (i, sector) {
+            $sectors.append($('<input type="checkbox" name="sectors" value="' + sector + '"/> <span>' + sector + '</span>'));
+        });
+        
+        // sort and insert installation checkboxes
+        var sortedInstallations = c7nSortedHashKeys(allInstallations);
+        var $trows = $(), $tr;
+        
+        $.each(sortedInstallations, function (i, installation) {
+        
+            if ((i%6) === 0) {
+                $tr = $('<tr />');
+                $trows = $trows.add($tr);
+            }
+            
+            $tr.append($('<td><input type="checkbox" name="installations" value="' + installation + '"/> ' + installation + '</td>'));
+        });
+        
+        $('#installations table').append($trows);
+    }
+    
+    /**
+     * Fetches a filtered markers list according to provided filters.
+     */
+    function getMarkers(filters, success, error) {
+        if (cachedMarkers) {
+            success && success(filterMarkers(filters, cachedMarkers));
         } else {
-          
-          $.getJSON('data/markers.json',function(data){
-            cachedMarkers=data;
-            clientFilter(cachedMarkers,callback);
-          });
+            $.getJSON('data/markers.json', function (data) {
+                
+                markersPostProcessing(cachedMarkers = data);
+                
+                success && success(filterMarkers(filters, cachedMarkers));
+                
+            }).error(error);
         }
     }
     
@@ -108,61 +151,50 @@ App = (function () {
         }, 0);
     }
     
-    function addMarkers(markers) {
+    function addMarkersToMap(markers) {
         var mapMarker, marker, icon;
-         
+        
         for (var i = 0, len = markers.length; i < len; i++) {
             
             mapMarker = new GMarker({
                 position: new GLatLng(
-                    parseFloat((marker = markers[i]).lat),
-                    parseFloat(marker.lng)
+                    (marker = markers[i]).lat,
+                    marker.lng
                 ),
                 icon: (icon = customIcons[marker.type] || {}).icon,
                 shadow: icon.shadow
             });
             
-            activeMarkers.push(mapMarker);
+            displayedMarkers.push(mapMarker);
             
             mapMarker._data = marker;
             
             GEvent.addListener(mapMarker, 'click', onMarkerClick);
         }
         
-        markerClusterer.addMarkers(activeMarkers);
+        markerClusterer.addMarkers(displayedMarkers);
     }
     
-    function removeAllMarkers() {
-        var i = activeMarkers.length - 1,
+    function removeAllMarkersFromMap() {
+        var i = displayedMarkers.length - 1,
             marker;
         
         markerClusterer.clearMarkers();
         
         while (i >= 0) {
-            marker = activeMarkers[i];
+            marker = displayedMarkers[i];
             GEvent.clearInstanceListeners(marker); //TODO: Is this needed since we used clearMarkers?
-            activeMarkers.splice(i, 1);
+            displayedMarkers.splice(i, 1);
             i--;
         }
     }
     
-    function onMarkersLoad(markers, status) {
-        if (status !== 200) {
-            //TODO: Handle error
-            return;
-        }
-        
-        addMarkers(markers);
-    }
-    
-    function filterMarkers(criterias) {
-        removeAllMarkers();
-        getMarkers(criterias, onMarkersLoad);
+    function refreshMarkers() {
+        removeAllMarkersFromMap();
+        getMarkers(activeFilters, addMarkersToMap);
     }
     
     function updateFilter(type, id, clear) {
-        type = type + 's';
-        
         if (clear) {
             delete activeFilters[type][id];
         } else {
@@ -170,52 +202,22 @@ App = (function () {
         }
     }
     
-    function installDOMListeners() {
+    function installListeners() {
         
-        on(document, 'click', function (e) {
-            var target = e.target;
+        $(document).on('click', '[type=checkbox]', function (e) {
+            var chk = e.target;
             
-            if (!target || target.type !== 'checkbox') {
-                return;
-            }
-            
-            updateFilter(target.name, target.value, !target.checked);
-            
-            filterMarkers(buildCriterias());
+            updateFilter(chk.name, chk.value, !chk.checked);            
+            refreshMarkers();
         });
         
-        //TODO: Free-text filterMarkers function
-        /*
-        on(searchInput, 'keypress', function (e) {
-            if (e.keyCode && e.keyCode === 13) {
-                filterMarkers(buildCriterias() + '&query=' + searchInput.value);
-            }
+        GEvent.addListener(infoWindow, 'closeclick', function () {
+            focusedMarker.setAnimation(null);
+            focusedMarker = null;
         });
-        */
+        
     }
-    
-    function buildCriterias() {
         
-        var sectors = activeFilters.sectors,
-            installations = activeFilters.installations,
-            installationsParams = '',
-            sectorsParams = '',
-            key;
-            
-        for (key in sectors) {
-            sectorsParams += key + ',';
-        }
-        
-        for (key in installations) {
-            installationsParams += key + ',';
-        }
-        
-        return encodeURI(
-            (installationsParams === ''? '' : 'installations=' + installationsParams.slice(0, -1))
-            + (sectorsParams === ''? '' : (installationsParams? '&' : '') + 'sectors=' + sectorsParams.slice(0, -1))
-        );
-    }
-    
     return {
         init: function () {
             
@@ -225,22 +227,15 @@ App = (function () {
                 mapTypeId: 'roadmap'
             });
             
-            markerClusterer = new MarkerClusterer(map, [], {
+            markerClusterer = new MarkerClusterer(map, null, {
                 minimumClusterSize: 10
             });
             
             infoWindow = new GMap.InfoWindow();
             
-            GEvent.addListener(infoWindow, 'closeclick', function () {
-                focusedMarker.setAnimation(null);
-                focusedMarker = null;
-            });
+            installListeners();
             
-            filterMarkers('');
-            
-            //searchInput = document.getElementById('filterMarkers-input');
-            
-            installDOMListeners();
+            refreshMarkers();
         }
     };
 })();
