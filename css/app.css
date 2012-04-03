@@ -37,7 +37,15 @@ td {
 	width: 225px;
 }
 
-
+@media screen and (max-width: 480px) {
+  .td1 {
+  	width: 220px;
+  }
+  .td2, .td3, .td4, .td5 {
+    display:none;
+  }
+  
+}
 .td1 {
 	width: 325px;
 }
@@ -68,8 +76,8 @@ td.space-hog {
 	
 
 #map {
-    height: 62%;
-    width: 99%;
+    height: 200px;
+    width: 300px;
 }
 
 #installations {

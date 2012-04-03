@@ -71,8 +71,8 @@ App = (function () {
         return filteredMarkers;
     }
     
+    var onceOnly=false;
     function markersPostProcessing(markers) {
-        
         var allSectors = {};
         var allInstallations = {};
         
@@ -85,13 +85,15 @@ App = (function () {
                 marker.hasInstallation[installation] = true;
             });
         });
+
+        if (onceOnly) return;
+        onceOnly=true;
         
         // sort and insert sector checkboxes
         var sortedSectors = c7nSortedHashKeys(allSectors);
         var $sectors = $('#sectors');
-        
         $.each(sortedSectors, function (i, sector) {
-            $sectors.append($('<input type="checkbox" name="sectors" value="' + sector + '"/> <span>' + sector + '</span>'));
+            $sectors.append($('<br><input type="checkbox" name="sectors" value="' + sector + '"/> <span>' + sector + '</span>'));
         });
         
         // sort and insert installation checkboxes
@@ -100,14 +102,13 @@ App = (function () {
         
         $.each(sortedInstallations, function (i, installation) {
         
-            if ((i%6) === 0) {
+            if ((i%1) === 0) {
                 $tr = $('<tr />');
                 $trows = $trows.add($tr);
             }
             
             $tr.append($('<td><input type="checkbox" name="installations" value="' + installation + '"/> ' + installation + '</td>'));
         });
-        
         $('#installations table').append($trows);
     }
     
@@ -115,10 +116,12 @@ App = (function () {
      * Fetches a filtered markers list according to provided filters.
      */
     function getMarkers(filters, success, error) {
-        if (cachedMarkers) {
+        if (false && cachedMarkers) {
             success && success(filterMarkers(filters, cachedMarkers));
         } else {
-            $.getJSON('data/markers.json', function (data) {
+            // var dataURL = 'data/markers.json';
+            var dataURL = '/geo?lat='+myPosition.lat+'&lng='+myPosition.lng;             
+            $.getJSON(dataURL, function (data) {
                 
                 markersPostProcessing(cachedMarkers = data);
                 
@@ -137,8 +140,9 @@ App = (function () {
         
         focusedMarker = this;
         
+        var dist=(data.distance?'(dist: '+data.distance+')':'');
         infoWindow.setContent([
-            '<b>', data.name, '</b><br>',
+            '<b>', data.name, '</b>   '+dist+ '<br>',
             data.address, '<br>',
             data.installations
         ].join(''));
@@ -153,6 +157,7 @@ App = (function () {
     function addMarkersToMap(markers) {
         var mapMarker, marker, icon;
         
+        if (markers.length) $('#closest').html('closest: '+markers[0].name);
         for (var i = 0, len = markers.length; i < len; i++) {
             
             mapMarker = new GMarker({
@@ -192,6 +197,7 @@ App = (function () {
         removeAllMarkersFromMap();
         getMarkers(activeFilters, addMarkersToMap);
     }
+    window.refreshMarkers=refreshMarkers;
     
     function updateFilter(type, id, clear) {
         if (clear) {
