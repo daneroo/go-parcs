@@ -28,6 +28,10 @@
     myPosition.lat = position.coords.latitude;
     myPosition.lng = position.coords.longitude;
     $('#myPosition').html('position: '+JSON.stringify(myPosition));
+    /*
+    var mapCenter = new google.maps.LatLng(myPosition.lat,myPosition.lng); 
+    map.setCenter(mapCenter); 
+    */    
     refreshMarkers();
   }
   function geo_error_handler(error) {
