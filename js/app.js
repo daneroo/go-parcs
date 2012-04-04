@@ -101,8 +101,10 @@ App = (function () {
         var $trows = $(), $tr;
         
         $.each(sortedInstallations, function (i, installation) {
-        
-            if ((i%1) === 0) {
+            console.log('width',$(window).width());            
+            var cols = Math.floor($(window).width()/150);
+            cols = Math.min(6,Math.max(1,cols));
+            if ((i%cols) === 0) {
                 $tr = $('<tr />');
                 $trows = $trows.add($tr);
             }
