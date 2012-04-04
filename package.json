@@ -1,0 +1,9 @@
+{
+  "name":"go-parcs",
+  "version":"0.0.1",
+  "dependencies":{
+    "connect": "2.x"
+  },
+  "main": "server.js",
+  "node":"0.6.12"
+}
