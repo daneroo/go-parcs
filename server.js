@@ -10,7 +10,7 @@ var mongodb = require('mongodb');
 
 var lavallee = {lat:45.4660,lng:-75.7553};
 // db.parcs.find( { latlng : { $near : [45.4660, -75.7553] } } ).limit(1)
-
+// db.runCommand({ geoNear : "points", near : [45.4660, -75.7553], spherical : false }).result
 var server = express.createServer();
 
 server.use(express.static(__dirname+ '/'));
@@ -27,7 +27,7 @@ server.get('/geo', function(req, res){
   var lat = Number(req.param('lat'))||lavallee.lat;
   var lng = Number(req.param('lng'))||lavallee.lng;  
   // console.log('requested lat:%s, lng:%s',lat,lng);
-  getNear(lat,lng,function(err,parcs){
+  geoNear(lng,lat,function(err,parcs){
       res.json(err || parcs);
   })
 });
@@ -37,17 +37,18 @@ reloadData();
 server.listen(port, host);
 console.log('http://'+host+':'+port+'/');
 
-function getNear(lat,lng,cb){
+function geoNear(lng,lat,cb){
     // console.log('getNear %s,%s',lat,lng);
     getCollection(function(err,coll){
         if(checkError(err,cb)) return;
         var opts = {
-            num:300 // otherwise 100 is max
-        }
-        coll.geoNear(lat,lng,opts,function(err,docs){
+          spherical : true,
+          distanceMultiplier:6371, // earth radius in km
+          num:300 // otherwise 100 is max
+        };
+        coll.geoNear(lng,lat,opts,function(err,docs){
             if(checkError(err,null)) return;
             // console.log('parcs-distances',docs.results);
-            // console.log('geoNear got %d parcs',docs.results.length);
             var parcs = [];
             docs.results.forEach(function(result){
                 var parc = result.obj;
@@ -73,12 +74,11 @@ function reloadData(){
             coll.ensureIndex( { latlng : "2d" } );
             // iterate and insert
             async.forEachSeries(parcs, function(parc,next){
-                //console.log('parc',parc);
-                // save(parc,function(){setTimeout(next,100);});
-                // add properly formated latlng member
-                parc.latlng = {lat:parc.lat,lng:parc.lng}
+              // order is king, longitude first, or use [lon,lat]
+                // parc.latlng = {lat:parc.lat,lng:parc.lng}; // WRONG
+                parc.latlng = {lng:parc.lng,lat:parc.lat}; // OK
+                // parc.latlng = [parc.lng,parc.lat]; // OK
                 save(parc,next);
-                // next();
             }, function(err){
                 console.log('done re-loading data');
             });

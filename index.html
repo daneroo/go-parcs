@@ -15,7 +15,7 @@
 	<script src="js/app.js" type="text/javascript"></script>
 	<script>
   var lavallee = {lat:45.4660,lng:-75.7553};
-	var myPosition = lavallee;
+  var myPosition = lavallee;
   if(navigator.geolocation) {
     // Geolocation supported. Do something here.
     navigator.geolocation.getCurrentPosition(geo_success_handler, geo_error_handler);
@@ -78,6 +78,7 @@
 	</div>
 	
 	<div id="map"></div>
+	<div id="list"></div>
 	
 	<div id="installations">
 	<b>Installation:</b>		

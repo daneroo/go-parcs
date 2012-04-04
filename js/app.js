@@ -142,7 +142,7 @@ App = (function () {
         
         focusedMarker = this;
         
-        var dist=(data.distance?'(dist: '+data.distance+')':'');
+        var dist=(data.distance?'('+data.distance.toPrecision(3)+' km)':'');
         infoWindow.setContent([
             '<b>', data.name, '</b>   '+dist+ '<br>',
             data.address, '<br>',
@@ -156,10 +156,52 @@ App = (function () {
         }, 0);
     }
     
+    /** Converts numeric degrees to radians */
+    if (typeof(Number.prototype.toRad) === "undefined") {
+      Number.prototype.toRad = function() {
+        return this * Math.PI / 180;
+      }
+    }
+    // http://www.movable-type.co.uk/scripts/latlong.html
+    function distanceHaversine(p1,p2){ // in km
+      var R = 6371; // km
+      var dLat = (p2.lat-p1.lat).toRad();
+      var dLon = (p2.lng-p1.lng).toRad();
+      var lat1 = p1.lat.toRad();
+      var lat2 = p2.lat.toRad();
+
+      var a = Math.sin(dLat/2) * Math.sin(dLat/2) +
+              Math.sin(dLon/2) * Math.sin(dLon/2) * Math.cos(lat1) * Math.cos(lat2); 
+      var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a)); 
+      var d = R * c;
+      return d;
+    }
+    function distanceSpericalLaw(p1,p2){ // in km
+      var R = 6371; // km
+      var d = Math.acos(Math.sin(p1.lat.toRad())*Math.sin(p2.lat.toRad()) + 
+      Math.cos(p1.lat.toRad())*Math.cos(p2.lat.toRad()) *
+      Math.cos(p2.lng.toRad()-p1.lng.toRad())) * R;
+      return d;
+    }
+    function distance(p1,p2){ // in km
+      // return distanceHaversine(p1,p2);
+      return distanceSpericalLaw(p1,p2);
+    }
     function addMarkersToMap(markers) {
         var mapMarker, marker, icon;
         
         if (markers.length) $('#closest').html('closest: '+markers[0].name);
+        // add markers to list
+        var $list=$('#list');
+        $list.html('');
+        $.each(markers,function(i,marker){
+          if (i>10) return false;
+          var d1=marker.distance;
+          var d2=distance(myPosition,{lat:marker.lat,lng:marker.lng});
+          var ratio = d2/d1;
+          $list.append('<div><span>'+marker.name+'</span>: <span>'+d1.toPrecision(3)+'</span> =&= <span>'+d2.toPrecision(3)+'</span> :: <span>'+ratio.toPrecision(3)+'</span></div>')
+        })
+        // add markers to map
         for (var i = 0, len = markers.length; i < len; i++) {
             
             mapMarker = new GMarker({
